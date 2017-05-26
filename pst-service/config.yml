@@ -1,0 +1,8 @@
+port: 8080
+logging:
+  level: INFO
+  loggers:
+    com.pst: DEBUG
+welcome: Thanks for visiting %s!
+defaultName: us
+uploadMessage: File successfully uploaded to

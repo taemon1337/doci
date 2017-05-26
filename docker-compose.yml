@@ -1,0 +1,10 @@
+version: '3'
+services:
+  pstService:
+    image: java:8-jre-alpine
+    volumes:
+      - ./pst-service:/usr/src/app:ro
+    ports:
+      - 8888:8080
+    working_dir: /usr/src/app/
+    command: java -jar target/pst-service-1.0-SNAPSHOT.jar server config.yml
