@@ -7,15 +7,13 @@ public class FileUpload {
   private final String filepath;
   private final String filename;
   private final long filesize;
-  private final String filetype;
   private final String message;
 
-  public FileUpload(long id, String filepath, String filename, long filesize, String filetype, String message) {
+  public FileUpload(long id, String filepath, String filename, long filesize, String message) {
     this.id = id;
     this.filepath = filepath;
     this.filename = filename;
     this.filesize = filesize;
-    this.filetype = filetype;
     this.message = message;
   }
 
@@ -27,5 +25,15 @@ public class FileUpload {
   @JsonProperty
   public String getContent() {
     return message + ": " + filepath;
+  }
+  
+  @JsonProperty
+  public String getFilename() {
+    return filename;
+  }
+  
+  @JsonProperty
+  public long getSize() {
+    return filesize;
   }
 }

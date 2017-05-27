@@ -7,9 +7,7 @@ import com.pst.health.RootHealthCheck;
 import io.dropwizard.Application;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
-
-// import org.glassfish.jersey.media.multipart.MultiPartFeature;
-// https://github.com/aruld/jersey2-multipart-sample
+import org.glassfish.jersey.media.multipart.MultiPartFeature;
 
 public class PstServiceApplication extends Application<PstServiceConfiguration> {
 
@@ -34,6 +32,7 @@ public class PstServiceApplication extends Application<PstServiceConfiguration> 
       final FileUploadResource uploader = new FileUploadResource(configuration.getUploadMessage());
       
       environment.healthChecks().register("root", healthCheck);
+      environment.jersey().register(MultiPartFeature.class);
       environment.jersey().register(root);
       environment.jersey().register(uploader);
     }
