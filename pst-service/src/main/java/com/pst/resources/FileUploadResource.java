@@ -1,6 +1,7 @@
 package com.pst.resources;
 
 import com.pst.api.FileUpload;
+import com.pst.api.Message;
 
 import com.pff.PSTFile;
 import com.pff.PSTFolder;
@@ -108,7 +109,7 @@ public class FileUploadResource {
           PSTMessage email = (PSTMessage)folder.getNextChild();
           while (email != null) {
               printDepth();
-              System.out.println("Email: FROM "+email.getSentRepresentingEmailAddress() + " TO " + email.getRcvdRepresentingName());
+              System.out.println("Email: FROM "+email.toString());
               email = (PSTMessage)folder.getNextChild();
           }
           depth--;
@@ -122,6 +123,8 @@ public class FileUploadResource {
       }
       System.out.print(" |- ");
   }
+  
+  public 
 	
 	// private ByteArrayOutputStream inputStreamToByteStream(InputStream inputStream) {
 	// 	ByteArrayOutputStream buffer = new ByteArrayOutputStream();
