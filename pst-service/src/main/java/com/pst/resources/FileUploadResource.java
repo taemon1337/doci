@@ -6,7 +6,13 @@ import com.pst.api.Message;
 import com.pff.PSTFile;
 import com.pff.PSTFolder;
 import com.pff.PSTMessage;
+import com.pff.PSTAttachment;
+import com.pff.PSTAppointment;
+import com.pff.PSTActivity;
+import com.pff.PSTTask;
 import com.pff.PSTException;
+import com.pff.PSTContact;
+import com.pff.PSTObject;
 
 import com.codahale.metrics.annotation.Timed;
 
@@ -103,18 +109,43 @@ public class FileUploadResource {
           }
       }
 
-      // and now the emails for this folder
       if (folder.getContentCount() > 0) {
           depth++;
-          PSTMessage email = (PSTMessage)folder.getNextChild();
-          while (email != null) {
-              printDepth();
-              System.out.println("Email: FROM "+email.toString());
-              email = (PSTMessage)folder.getNextChild();
+
+          PSTObject psto = folder.getNextChild();
+          while (psto != null) {
+            printDepth();
+            processMessage(psto);
+            psto = folder.getNextChild();
           }
           depth--;
       }
       depth--;
+  }
+  
+  public void processMessage(PSTObject obj) {
+    if (obj instanceof PSTContact) {
+      PSTContact contact = (PSTContact)obj;
+      System.out.println("CONTACT: " + contact.getDisplayName());
+    } else if (obj instanceof PSTAppointment) {
+      PSTAppointment appt = (PSTAppointment)obj;
+      System.out.println("APPOINTMENT: " + appt.getSubject());
+    } else if (obj instanceof PSTActivity) {
+      PSTActivity activity = (PSTActivity)obj;
+      System.out.println("ACTIVITY: " + activity.getSubject());
+    } else if (obj instanceof PSTTask) {
+      PSTTask task = (PSTTask)obj;
+      System.out.println("TASK: " + task.getSubject());
+    } else if (obj instanceof PSTMessage) {
+      PSTMessage msg = (PSTMessage)obj;
+        // System.out.println("MESSAGE: " + msg.getSubject());
+        System.out.println("");
+    } else if (obj instanceof PSTAttachment) {
+      PSTAttachment attachment = (PSTAttachment)obj;
+      System.out.println("ATTACHMENT: " + attachment.getFilename());
+    } else {
+      System.out.println("?");
+    }
   }
 
   public void printDepth() {
@@ -123,20 +154,4 @@ public class FileUploadResource {
       }
       System.out.print(" |- ");
   }
-  
-  public 
-	
-	// private ByteArrayOutputStream inputStreamToByteStream(InputStream inputStream) {
-	// 	ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-	// 	int nRead;
-	// 	byte[] data = new byte[16384];
-		
-	// 	while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
-	// 		buffer.write(data, 0, nRead);
-	// 	}
-		
-	// 	buffer.flush();
-		
-	// 	return buffer.toByteArray();
-	// }
 }
