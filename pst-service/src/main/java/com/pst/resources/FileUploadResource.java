@@ -4,6 +4,7 @@ import com.pst.api.FileUpload;
 import com.pst.api.Message;
 
 import com.pff.PSTFile;
+import com.pff.PSTObject;
 import com.pff.PSTFolder;
 import com.pff.PSTMessage;
 import com.pff.PSTException;
@@ -87,7 +88,7 @@ public class FileUploadResource {
 	
 	int depth = -1;
 
-  public void processFolder(PSTFolder folder) throws PSTException, IOException {
+  public List<PSTMessage> processFolder(PSTFolder folder) throws PSTException, IOException {
       depth++;
       // the root folder doesn't have a display name
       if (depth > 0) {
@@ -106,6 +107,8 @@ public class FileUploadResource {
       // and now the emails for this folder
       if (folder.getContentCount() > 0) {
           depth++;
+          PSTObject psto = folder.getNextChild();
+          
           PSTMessage email = (PSTMessage)folder.getNextChild();
           while (email != null) {
               printDepth();
@@ -123,8 +126,6 @@ public class FileUploadResource {
       }
       System.out.print(" |- ");
   }
-  
-  public 
 	
 	// private ByteArrayOutputStream inputStreamToByteStream(InputStream inputStream) {
 	// 	ByteArrayOutputStream buffer = new ByteArrayOutputStream();
