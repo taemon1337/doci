@@ -13,13 +13,7 @@ import com.pst.api.Appointment;
 import com.pff.PSTFile;
 import com.pff.PSTFolder;
 import com.pff.PSTMessage;
-import com.pff.PSTAttachment;
-import com.pff.PSTAppointment;
-import com.pff.PSTActivity;
-import com.pff.PSTTask;
 import com.pff.PSTException;
-import com.pff.PSTContact;
-import com.pff.PSTObject;
 
 import com.codahale.metrics.annotation.Timed;
 
@@ -122,14 +116,23 @@ public class FileUploadResource {
           }
       }
 
+      // and now the emails for this folder
       if (folder.getContentCount() > 0) {
           depth++;
+<<<<<<< HEAD
 
           PSTObject psto = folder.getNextChild();
           while (psto != null) {
             printDepth();
             results.add(processMessage(psto));
             psto = folder.getNextChild();
+=======
+          PSTMessage email = (PSTMessage)folder.getNextChild();
+          while (email != null) {
+              printDepth();
+              System.out.println("Email: FROM "+email.toString());
+              email = (PSTMessage)folder.getNextChild();
+>>>>>>> parent of cd8facb... casting pstobjects around
           }
           depth--;
       }
@@ -137,6 +140,7 @@ public class FileUploadResource {
       
       return results;
   }
+<<<<<<< HEAD
   
   public PstJson processMessage(PSTObject obj) {
     if (obj instanceof PSTContact) {
@@ -168,6 +172,8 @@ public class FileUploadResource {
     }
     return json;
   }
+=======
+>>>>>>> parent of cd8facb... casting pstobjects around
 
   public void printDepth() {
       for (int x = 0; x < depth-1; x++) {
@@ -175,4 +181,20 @@ public class FileUploadResource {
       }
       System.out.print(" |- ");
   }
+  
+  public 
+	
+	// private ByteArrayOutputStream inputStreamToByteStream(InputStream inputStream) {
+	// 	ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+	// 	int nRead;
+	// 	byte[] data = new byte[16384];
+		
+	// 	while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+	// 		buffer.write(data, 0, nRead);
+	// 	}
+		
+	// 	buffer.flush();
+		
+	// 	return buffer.toByteArray();
+	// }
 }
