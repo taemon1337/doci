@@ -8,3 +8,12 @@ services:
       - 8888:8080
     working_dir: /usr/src/app/
     command: java -jar target/pst-service-1.0-SNAPSHOT.jar server config.yml
+  libpff:
+    build: ./libpff
+    volumes:
+      - ./libpff:/app
+    ports:
+      - 8889:8080
+    working_dir: /app
+    entrypoint: python
+    command: -u run.py
