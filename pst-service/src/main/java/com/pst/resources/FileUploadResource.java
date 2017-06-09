@@ -1,7 +1,14 @@
 package com.pst.resources;
 
 import com.pst.api.FileUpload;
-import com.pst.api.Message;
+import com.pst.api.PstFileUpload;
+import com.pst.api.PstJson;
+import com.pst.api.Email;
+import com.pst.api.Contact;
+import com.pst.api.Attachment;
+import com.pst.api.Task;
+import com.pst.api.Activity;
+import com.pst.api.Appointment;
 
 import com.pff.PSTFile;
 import com.pff.PSTFolder;
@@ -33,6 +40,8 @@ import javax.ws.rs.core.Response;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Vector;
 import java.io.ByteArrayOutputStream;
 
@@ -46,18 +55,18 @@ public class FileUploadResource {
     this.message = message;
     this.counter = new AtomicLong();
   }
-
+  
   @POST
   @Consumes(MediaType.MULTIPART_FORM_DATA)
   @Timed
-  public FileUpload uploadFile(@FormDataParam("file") InputStream uploadedInputStream, @FormDataParam("file") FormDataContentDisposition fileDetail) {
-		String uploadedFileLocation = "/tmp/" + fileDetail.getFileName();
+  public PstFileUpload uploadPSTFile(@FormDataParam("file") InputStream uploadedInputStream, @FormDataParam("file") FormDataContentDisposition fileDetail) {
+    String uploadedFileLocation = "/tmp/" + fileDetail.getFileName();
 
 		writeToFile(uploadedInputStream, uploadedFileLocation);
-		parsePst(uploadedFileLocation);
+		List results = parsePst(uploadedFileLocation);
 		File file = new File(uploadedFileLocation);
 
-		return new FileUpload(counter.incrementAndGet(), uploadedFileLocation, fileDetail.getFileName(), file.length(), message);
+		return new PstFileUpload(counter.incrementAndGet(), uploadedFileLocation, fileDetail.getFileName(), file.length(), message, results);
   }
   
   private void writeToFile(InputStream uploadedInputStream, String uploadedFileLocation) {
@@ -77,23 +86,26 @@ public class FileUploadResource {
 		}
 	}
 	
-	private void parsePst(String inputPath) {
+	private List<PstJson> parsePst(String inputPath) {
+	  List items = new ArrayList();
 		try {
 			try {
 				PSTFile pstFile = new PSTFile(inputPath);
     		System.out.println(pstFile.getMessageStore().getDisplayName());
-    		processFolder(pstFile.getRootFolder());
+    		return processFolder(pstFile.getRootFolder());
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 			}
 		} catch (PSTException | IOException e) {
 			e.printStackTrace();
 		}
+		return items;
 	}
 	
 	int depth = -1;
 
-  public void processFolder(PSTFolder folder) throws PSTException, IOException {
+  public List<PstJson> processFolder(PSTFolder folder) throws PSTException, IOException {
+      List results = new ArrayList();
       depth++;
       // the root folder doesn't have a display name
       if (depth > 0) {
@@ -105,7 +117,8 @@ public class FileUploadResource {
       if (folder.hasSubfolders()) {
           Vector<PSTFolder> childFolders = folder.getSubFolders();
           for (PSTFolder childFolder : childFolders) {
-              processFolder(childFolder);
+            List<PstJson> children = processFolder(childFolder);
+            results.add(children);
           }
       }
 
@@ -115,37 +128,45 @@ public class FileUploadResource {
           PSTObject psto = folder.getNextChild();
           while (psto != null) {
             printDepth();
-            processMessage(psto);
+            results.add(processMessage(psto));
             psto = folder.getNextChild();
           }
           depth--;
       }
       depth--;
+      
+      return results;
   }
   
-  public void processMessage(PSTObject obj) {
+  public PstJson processMessage(PSTObject obj) {
     if (obj instanceof PSTContact) {
       PSTContact contact = (PSTContact)obj;
-      System.out.println("CONTACT: " + contact.getDisplayName());
+      return new Contact(contact.getGivenName());
     } else if (obj instanceof PSTAppointment) {
       PSTAppointment appt = (PSTAppointment)obj;
-      System.out.println("APPOINTMENT: " + appt.getSubject());
+      return new Appointment()
+      json.setSubject(appt.getSubject());
     } else if (obj instanceof PSTActivity) {
       PSTActivity activity = (PSTActivity)obj;
-      System.out.println("ACTIVITY: " + activity.getSubject());
+      json.setType("Activity");
+      json.setSubject(activity.getSubject());
     } else if (obj instanceof PSTTask) {
       PSTTask task = (PSTTask)obj;
-      System.out.println("TASK: " + task.getSubject());
+      json.setType("Task");
+      json.setSubject(task.getSubject());
     } else if (obj instanceof PSTMessage) {
       PSTMessage msg = (PSTMessage)obj;
-        // System.out.println("MESSAGE: " + msg.getSubject());
-        System.out.println("");
+        json.setType("Message");
+        json.setSubject(msg.getSubject());
     } else if (obj instanceof PSTAttachment) {
       PSTAttachment attachment = (PSTAttachment)obj;
-      System.out.println("ATTACHMENT: " + attachment.getFilename());
+      json.setType("Attachment");
+      json.setSubject(attachment.getFilename());
     } else {
-      System.out.println("?");
+      json.setType("Unknown");
+      json.setSubject("?");
     }
+    return json;
   }
 
   public void printDepth() {
