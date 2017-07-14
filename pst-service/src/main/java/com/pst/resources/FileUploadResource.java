@@ -3,6 +3,7 @@ package com.pst.resources;
 import com.pst.api.FileUpload;
 import com.pst.api.PstFileUpload;
 import com.pst.api.PstJson;
+import com.pst.api.PstJsonException;
 import com.pst.api.Email;
 import com.pst.api.Contact;
 import com.pst.api.Attachment;
@@ -14,6 +15,11 @@ import com.pff.PSTFile;
 import com.pff.PSTObject;
 import com.pff.PSTFolder;
 import com.pff.PSTMessage;
+import com.pff.PSTContact;
+import com.pff.PSTAppointment;
+import com.pff.PSTAttachment;
+import com.pff.PSTActivity;
+import com.pff.PSTTask;
 import com.pff.PSTException;
 
 import com.codahale.metrics.annotation.Timed;
@@ -86,7 +92,7 @@ public class FileUploadResource {
 		try {
 			try {
 				PSTFile pstFile = new PSTFile(inputPath);
-    		System.out.println(pstFile.getMessageStore().getDisplayName());
+    		// System.out.println(pstFile.getMessageStore().getDisplayName());
     		return processFolder(pstFile.getRootFolder());
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
@@ -113,7 +119,8 @@ public class FileUploadResource {
           Vector<PSTFolder> childFolders = folder.getSubFolders();
           for (PSTFolder childFolder : childFolders) {
             List<PstJson> children = processFolder(childFolder);
-            results.add(children);
+            results.addAll(children);
+            // results.add(children);
           }
       }
 
@@ -122,8 +129,13 @@ public class FileUploadResource {
           depth++;
           PSTObject psto = folder.getNextChild();
           while (psto != null) {
-            printDepth();
-            results.add(processMessage(psto));
+            // printDepth();
+            try {
+              PstJson result = processMessage(psto);
+              results.add(result);
+            } catch (PstJsonException err) {
+              System.out.println("Error processing PST message " + err.toString());
+            }
             psto = folder.getNextChild();
           }
           depth--;
@@ -133,41 +145,35 @@ public class FileUploadResource {
       return results;
   }
   
-  public PstJson processMessage(PSTObject obj) {
+  public PstJson processMessage(PSTObject obj) throws PstJsonException {
+    PSTMessage msg = (PSTMessage)obj;
+    String folder = obj.getDisplayName();
     if (obj instanceof PSTContact) {
       PSTContact contact = (PSTContact)obj;
-      return new Contact(contact.getGivenName());
+      return new Contact(folder, contact.getGivenName(), msg.getMessageClass(), msg.getMessageDeliveryTime());
     } else if (obj instanceof PSTAppointment) {
       PSTAppointment appt = (PSTAppointment)obj;
-      return new Appointment()
-      json.setSubject(appt.getSubject());
+      return new Appointment(folder, msg.getSubject(), msg.getMessageClass(), appt.getStartTime());
     } else if (obj instanceof PSTActivity) {
       PSTActivity activity = (PSTActivity)obj;
-      json.setType("Activity");
-      json.setSubject(activity.getSubject());
+      return new Activity(folder, msg.getSubject(), msg.getMessageClass(), activity.getLogStart());
     } else if (obj instanceof PSTTask) {
       PSTTask task = (PSTTask)obj;
-      json.setType("Task");
-      json.setSubject(task.getSubject());
+      return new Task(folder, msg.getSubject(), msg.getMessageClass(), msg.getMessageDeliveryTime());
     } else if (obj instanceof PSTMessage) {
-      PSTMessage msg = (PSTMessage)obj;
-        json.setType("Message");
-        json.setSubject(msg.getSubject());
+      return new Email(folder, msg.getSubject(), msg.getMessageClass(), msg.getMessageDeliveryTime(), obj.getEmailAddress(), msg.getReceivedByName());
     } else if (obj instanceof PSTAttachment) {
       PSTAttachment attachment = (PSTAttachment)obj;
-      json.setType("Attachment");
-      json.setSubject(attachment.getFilename());
+      return new Attachment(folder, attachment.getFilename(), msg.getMessageClass(), msg.getMessageDeliveryTime());
     } else {
-      json.setType("Unknown");
-      json.setSubject("?");
+      throw new PstJsonException(String.format("Unknown PST Message Type: %s, %s", obj.getClass().getName(), obj.getMessageClass()));
     }
-    return json;
   }
 
   public void printDepth() {
-      for (int x = 0; x < depth-1; x++) {
-          System.out.print(" | ");
-      }
-      System.out.print(" |- ");
+    for (int x = 0; x < depth-1; x++) {
+      System.out.print(" | ");
+    }
+    System.out.print(" |- ");
   }
 }

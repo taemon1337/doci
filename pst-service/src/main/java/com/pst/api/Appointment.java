@@ -1,17 +1,12 @@
 package com.pst.api;
 
-import com.pst.PstJson;
+import com.pst.api.PstJson;
+import java.util.Date;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Appointment extends PstJson {
-  private final String datetime;
 
-  public PstItem(String datetime) {
-    this.datetime = datetime;
-  }
-
-  @JsonProperty
-  public String getDatetime() {
-    return datetime;
+  public Appointment(String folder, String subject, String messageClass, Date starttime) {
+    super(folder, subject, messageClass, starttime);
   }
 }

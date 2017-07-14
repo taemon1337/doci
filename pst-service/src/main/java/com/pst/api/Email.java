@@ -1,18 +1,17 @@
 package com.pst.api;
 
 import com.pst.api.PstJson;
+import java.util.Date;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Email extends PstJson {
   private final String sender;
   private final String receiver;
-  private final String datetime;
 
-  public PstItem(String subject, String sender, String receiver, String datetime) {
-    this.subject = subject;
+  public Email(String folder, String subject, String messageClass, Date datetime, String sender, String receiver) {
+    super(folder, subject, messageClass, datetime);
     this.sender = sender;
     this.receiver = receiver;
-    this.datetime = datetime;
   }
   
   @JsonProperty
@@ -23,10 +22,5 @@ public class Email extends PstJson {
   @JsonProperty
   public String getReceiver() {
     return receiver;
-  }
-  
-  @JsonProperty
-  public String getDatetime() {
-    return datetime;
   }
 }
