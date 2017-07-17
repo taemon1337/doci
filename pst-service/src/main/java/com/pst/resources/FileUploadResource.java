@@ -5,11 +5,6 @@ import com.pst.api.PstFileUpload;
 import com.pst.api.PstJson;
 import com.pst.api.PstJsonException;
 import com.pst.api.Email;
-import com.pst.api.Contact;
-import com.pst.api.Attachment;
-import com.pst.api.Task;
-import com.pst.api.Activity;
-import com.pst.api.Appointment;
 
 import com.pff.PSTFile;
 import com.pff.PSTObject;
@@ -93,7 +88,7 @@ public class FileUploadResource {
 			try {
 				PSTFile pstFile = new PSTFile(inputPath);
     		// System.out.println(pstFile.getMessageStore().getDisplayName());
-    		return processFolder(pstFile.getRootFolder());
+    		return processFolder(pstFile.getRootFolder(), "/");
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 			}
@@ -105,69 +100,72 @@ public class FileUploadResource {
 	
 	int depth = -1;
 
-  public List<PstJson> processFolder(PSTFolder folder) throws PSTException, IOException {
-      List results = new ArrayList();
-      depth++;
-      // the root folder doesn't have a display name
-      if (depth > 0) {
-          printDepth();
-          System.out.println(folder.getDisplayName());
-      }
+  public List<PstJson> processFolder(PSTFolder folder, String path) throws PSTException, IOException {
+    path = path + "/" + folder.getDisplayName();
+    List results = new ArrayList();
+    depth++;
+    // the root folder doesn't have a display name
+    if (depth > 0) {
+        // printDepth();
+        System.out.println("[" + path + "]");
+    }
 
-      // go through the folders...
-      if (folder.hasSubfolders()) {
-          Vector<PSTFolder> childFolders = folder.getSubFolders();
-          for (PSTFolder childFolder : childFolders) {
-            List<PstJson> children = processFolder(childFolder);
-            results.addAll(children);
-            // results.add(children);
-          }
-      }
+    // go through the folders...
+    if (folder.hasSubfolders()) {
+        Vector<PSTFolder> childFolders = folder.getSubFolders();
+        for (PSTFolder childFolder : childFolders) {
+          List<PstJson> children = processFolder(childFolder, path);
+          results.addAll(children);
+          // results.add(children);
+        }
+    }
 
-      // and now the emails for this folder
-      if (folder.getContentCount() > 0) {
-          depth++;
-          PSTObject psto = folder.getNextChild();
-          while (psto != null) {
-            // printDepth();
-            try {
-              PstJson result = processMessage(psto);
-              results.add(result);
-            } catch (PstJsonException err) {
-              System.out.println("Error processing PST message " + err.toString());
-            }
-            psto = folder.getNextChild();
+    // and now the emails for this folder
+    if (folder.getContentCount() > 0) {
+        depth++;
+        PSTObject psto = folder.getNextChild();
+        while (psto != null) {
+          // printDepth();
+          try {
+            PstJson result = processMessage(psto, path);
+            results.add(result);
+          } catch (PstJsonException err) {
+            System.out.println("Error processing PST message " + err.toString());
           }
-          depth--;
-      }
-      depth--;
-      
-      return results;
+          psto = folder.getNextChild();
+        }
+        depth--;
+    }
+    depth--;
+    
+    return results;
   }
   
-  public PstJson processMessage(PSTObject obj) throws PstJsonException {
-    PSTMessage msg = (PSTMessage)obj;
-    String folder = obj.getDisplayName();
-    if (obj instanceof PSTContact) {
-      PSTContact contact = (PSTContact)obj;
-      return new Contact(folder, contact.getGivenName(), msg.getMessageClass(), msg.getMessageDeliveryTime());
-    } else if (obj instanceof PSTAppointment) {
-      PSTAppointment appt = (PSTAppointment)obj;
-      return new Appointment(folder, msg.getSubject(), msg.getMessageClass(), appt.getStartTime());
-    } else if (obj instanceof PSTActivity) {
-      PSTActivity activity = (PSTActivity)obj;
-      return new Activity(folder, msg.getSubject(), msg.getMessageClass(), activity.getLogStart());
-    } else if (obj instanceof PSTTask) {
-      PSTTask task = (PSTTask)obj;
-      return new Task(folder, msg.getSubject(), msg.getMessageClass(), msg.getMessageDeliveryTime());
-    } else if (obj instanceof PSTMessage) {
-      return new Email(folder, msg.getSubject(), msg.getMessageClass(), msg.getMessageDeliveryTime(), obj.getEmailAddress(), msg.getReceivedByName());
-    } else if (obj instanceof PSTAttachment) {
-      PSTAttachment attachment = (PSTAttachment)obj;
-      return new Attachment(folder, attachment.getFilename(), msg.getMessageClass(), msg.getMessageDeliveryTime());
-    } else {
-      throw new PstJsonException(String.format("Unknown PST Message Type: %s, %s", obj.getClass().getName(), obj.getMessageClass()));
-    }
+  public PstJson processMessage(PSTObject obj, String path) throws PstJsonException {
+    return new PstJson(obj, path);
+    // PSTMessage msg = (PSTMessage)obj;
+    // String folder = obj.getDisplayName();
+    // if (obj instanceof PSTContact) {
+    //   PSTContact contact = (PSTContact)obj;
+    //   return new Contact(folder, contact.getGivenName(), msg.getMessageClass(), msg.getMessageDeliveryTime());
+    // } else if (obj instanceof PSTAppointment) {
+    //   PSTAppointment appt = (PSTAppointment)obj;
+    //   return new Appointment(folder, msg.getSubject(), msg.getMessageClass(), appt.getStartTime());
+    // } else if (obj instanceof PSTActivity) {
+    //   PSTActivity activity = (PSTActivity)obj;
+    //   return new Activity(folder, msg.getSubject(), msg.getMessageClass(), activity.getLogStart());
+    // } else if (obj instanceof PSTTask) {
+    //   PSTTask task = (PSTTask)obj;
+    //   return new Task(folder, msg.getSubject(), msg.getMessageClass(), msg.getMessageDeliveryTime());
+    // } else if (obj instanceof PSTMessage) {
+    //   return new Email(folder, msg.getSubject(), msg.getMessageClass(), msg.getMessageDeliveryTime(), obj.getEmailAddress(), msg.getReceivedByName());
+    // } else if (obj instanceof PSTAttachment) {
+    //   PSTAttachment attachment = (PSTAttachment)obj;
+    //   return new Attachment(folder, attachment.getFilename(), msg.getMessageClass(), msg.getMessageDeliveryTime());
+    // } else {
+    //   return new Email(folder, msg.getSubject(), msg.getMessageClass(), msg.getMessageDeliveryTime(), obj.getEmailAddress(), msg.getReceivedByName());
+    //   // throw new PstJsonException(String.format("Unknown PST Message Type: %s, %s", obj.getClass().getName(), obj.getMessageClass()));
+    // }
   }
 
   public void printDepth() {
