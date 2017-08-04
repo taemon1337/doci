@@ -2,6 +2,9 @@ package com.pst;
 
 import com.pst.resources.RootResource;
 import com.pst.resources.FileUploadResource;
+import com.pst.resources.PstFileResource;
+import com.pst.resources.TestStream;
+import com.pst.resources.GetStream;
 import com.pst.health.RootHealthCheck;
 
 import io.dropwizard.Application;
@@ -30,11 +33,17 @@ public class PstServiceApplication extends Application<PstServiceConfiguration> 
       final RootHealthCheck healthCheck = new RootHealthCheck(configuration.getWelcome());
       final RootResource root = new RootResource(configuration.getWelcome(), configuration.getDefaultName());
       final FileUploadResource uploader = new FileUploadResource(configuration.getUploadMessage());
+      final PstFileResource pstparser = new PstFileResource();
+      final TestStream teststream = new TestStream();
+      final GetStream getstream = new GetStream();
       
       environment.healthChecks().register("root", healthCheck);
       environment.jersey().register(MultiPartFeature.class);
       environment.jersey().register(root);
       environment.jersey().register(uploader);
+      environment.jersey().register(pstparser);
+      environment.jersey().register(teststream);
+      environment.jersey().register(getstream);
     }
 
 }

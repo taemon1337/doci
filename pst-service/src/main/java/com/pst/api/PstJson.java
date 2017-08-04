@@ -2,11 +2,15 @@ package com.pst.api;
 
 import com.pff.PSTObject;
 import com.pff.PSTMessage;
+import com.pff.PSTException;
 
 import com.pst.util.Gzipper;
 
+import javax.json.Json;
 import org.apache.commons.lang3.StringUtils;
+import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 import java.util.Base64;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.security.MessageDigest;
@@ -18,10 +22,9 @@ public class PstJson {
   public final String folder;
   public final String messageClass;
   public final String subject;
-  public final String receiver;
-  public final String sender;
+  public final String from;
+  public final String to;
   public final String body;
-  public final String html;
   public final int bodySize;
   public final String sha256;
   private final Date datetime;
@@ -34,15 +37,69 @@ public class PstJson {
     this.folder = folder;
     this.messageClass = msg.getMessageClass();
     this.subject = msg.getSubject();
-    this.receiver = msg.getReceivedByName() + "; " + msg.getReceivedByAddress();
-    // this.sender = msg.getSentRepresentingName() + "; " + msg.getSentRepresentingAddressType() + "; " + msg.getSentRepresentingEmailAddress();
-    this.sender = msg.getSenderName() + "; " + msg.getSenderEmailAddress();
+    this.from = parseSender(msg);
+    this.to = parseReceiver(msg);
     this.attachmentCount = msg.getNumberOfAttachments();
     this.datetime = msg.getMessageDeliveryTime();
-    this.body = msg.getBody();
-    this.html = b64gzip(msg.getBodyHTML());
-    this.bodySize = this.body.length() > 0 ? this.body.length() : this.html.length();
-    this.sha256 = calcSha256(this.messageId, this.subject, this.sender, this.receiver);
+    this.body = parseBody(msg);
+    this.bodySize = this.body.length();
+    this.sha256 = calcSha256(this.messageId, this.subject, this.from, this.to);
+  }
+
+  private String parseSender(PSTMessage msg) {
+    String from = "";
+    String s1 = msg.getSenderName();
+    String s2 = msg.getSenderEmailAddress();
+    if (s1 != "") {
+      from += s1;
+    }
+    if (s2 != "") {
+      from += s2;
+    }
+    return from;
+  }
+  
+  private String parseReceiver(PSTMessage msg) {
+    String to = "";
+    String r1 = msg.getReceivedByName();
+    String r2 = msg.getReceivedByAddress();
+    if (r1 != "") {
+      to += r1;
+    }
+    if (r2 != "") {
+      to += r2;
+    }
+    return to;
+  }
+
+  private String parseBody(PSTMessage msg) {
+    try {
+      String body = msg.getBody();
+      String html = msg.getBodyHTML();
+      String rtfb = msg.getRTFBody();
+      int bl = body.length();
+      int hl = html.length();
+      int rl = rtfb.length();
+      if (bl > hl && bl > rl) {
+        return base64(body);
+      } else if (rl > hl && rl > bl) {
+        return base64(rtfb);
+      } else {
+        return base64(html);
+      }
+    } catch (PSTException e) {
+      e.printStackTrace();
+      return e.toString();
+    } catch (IOException e) {
+      e.printStackTrace();
+      return e.toString();
+    }
+  }
+  
+  private String base64(String text) {
+    Base64.Encoder encoder = Base64.getEncoder();
+    byte[] encoded = encoder.encode(text.getBytes());
+    return new String(encoded);
   }
   
   private String b64gzip(String text) {
@@ -97,13 +154,13 @@ public class PstJson {
   }
   
   @JsonProperty
-  public String getSender() {
-    return sender;
+  public String getFrom() {
+    return from;
   }
   
   @JsonProperty
-  public String getReceiver() {
-    return receiver;
+  public String getTo() {
+    return to;
   }
   
   @JsonProperty
@@ -114,11 +171,6 @@ public class PstJson {
   @JsonProperty
   public int getBodySize() {
     return bodySize;
-  }
-  
-  @JsonProperty
-  public String getHtml() {
-    return html;
   }
   
   @JsonProperty
@@ -134,5 +186,20 @@ public class PstJson {
   @JsonProperty
   public String getSha256() {
     return sha256;
+  }
+  
+  public String toString() {
+    return Json.createObjectBuilder()
+      .add("folder-path", folder)
+      .add("message-class", messageClass)
+      .add("message-id", messageId)
+      .add("node-id", String.format("%d", nodeId))
+      .add("from", from)
+      .add("to", to)
+      .add("subject", subject)
+      .add("datetime", datetime.toString())
+      .build()
+      .toString()
+    ;
   }
 }

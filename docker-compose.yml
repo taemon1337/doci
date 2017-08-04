@@ -1,6 +1,6 @@
 version: '3'
 services:
-  pstService:
+  pst-service:
     image: java:8-jre-alpine
     volumes:
       - ./pst-service:/usr/src/app:ro
@@ -17,3 +17,27 @@ services:
     working_dir: /app
     entrypoint: python
     command: -u run.py
+  bleve-explorer:
+    build: ./bleve-explorer
+    volumes:
+      - ./bleve-explorer:/go/src/app
+    ports:
+      - 8000:8000
+  pstv:
+    build: ./pstv
+    volumes:
+      - ./pstv:/app
+    working_dir: /app
+    command: npm run dev
+    ports:
+      - 8080:8080
+  # bull:
+  #   build: ./bull
+  #   volumes:
+  #     - ./bull:/app
+  #   working_dir: /app
+  #   command: node run.js
+  #   ports:
+  #     - 8001:8080
+  # redis:
+  #   image: redis:alpine
