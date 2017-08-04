@@ -50,7 +50,7 @@ func (i *Indexer) Open() error {
 
 // Index indexes the given docs, dividing the docs evenly across the shards.
 // Blocks until all documents have been indexed.
-func (i *Indexer) Index(docs []map[string]interface{}) error {
+func (i *Indexer) Index(idField string, docs []map[string]interface{}) error {
   total := len(docs)
 	base := 0
 	docsPerShard := (len(docs) / len(i.shards))
@@ -59,7 +59,6 @@ func (i *Indexer) Index(docs []map[string]interface{}) error {
 	wg.Add(len(i.shards))
 	for _, s := range i.shards {
 		go func(b bleve.Index, ds []map[string]interface{}) {
-		  fmt.Println("BATCH GO ROUTINE")
 			defer wg.Done()
 
 			batch := b.NewBatch()
@@ -68,21 +67,21 @@ func (i *Indexer) Index(docs []map[string]interface{}) error {
 			// Just index whole batches.
 			for n = 0; n < len(ds)-(len(ds)%i.batchSz); n++ {
 			  fmt.Println("Batch Number %d / %d", n, total)
-				data := struct {
-					Body interface{}
-				}{
-					Body: ds[n],
-				}
-
-				if err := batch.Index(strconv.Itoa(n), data); err != nil {
-					panic(fmt.Sprintf("failed to index doc: %s", err.Error()))
-				}
+			  var doc = ds[n]
+			  var docID = doc[idField].(string)
+			  if docID != "" {
+				  if err := batch.Index(docID, doc); err != nil {
+					  panic(fmt.Sprintf("failed to index doc: %s", err.Error()))
+				  }
+			  }
 
 				if batch.Size() == i.batchSz {
 					if err := b.Batch(batch); err != nil {
 						panic(fmt.Sprintf("failed to index batch: %s", err.Error()))
 					}
 					batch = b.NewBatch()
+				} else {
+				  fmt.Println("Batch Size does not equal batchSize! %d != %d", batch.Size(), i.batchSz)
 				}
 			}
 		}(s, docs[base:base+docsPerShard])

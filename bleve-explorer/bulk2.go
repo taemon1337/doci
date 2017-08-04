@@ -55,6 +55,9 @@ func (h *BulkIndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
     showError(w, req, fmt.Sprintf("failed to open indexer: ", err), 404)
     return
   }
+  
+  i.SetName(indexName)
+  RegisterIndexName(indexName, i)
 
 	// find the doc id field
 	var idField string
@@ -82,7 +85,7 @@ func (h *BulkIndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	startTime := time.Now()
-	if err := i.Index(docs); err != nil {
+	if err := i.Index(idField, docs); err != nil {
 		showError(w, req, fmt.Sprintf("failed to index documents: %v", err), 404)
 		return
 	}
