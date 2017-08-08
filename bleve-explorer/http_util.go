@@ -78,6 +78,10 @@ func indexNameLookup(req *http.Request) string {
 	return muxVariableLookup(req, "indexName")
 }
 
+func indexerNameLookup(req *http.Request) string {
+	return muxVariableLookup(req, "indexName")
+}
+
 func showError(w http.ResponseWriter, r *http.Request,
 	msg string, code int) {
 	log.Printf("Reporting error %v/%v", code, msg)

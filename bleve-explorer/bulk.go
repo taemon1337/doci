@@ -3,27 +3,26 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+	"runtime"
 	"io/ioutil"
 	"net/http"
-	bleveHttp "github.com/blevesearch/bleve/http"
 )
 
-type varLookupFunc func(req *http.Request) string
-
-type BulkDocIndexHandler struct {
+type BulkIndexHandler struct {
 	defaultIndexName string
 	IndexNameLookup  varLookupFunc
 	DocIDLookup      varLookupFunc
 }
 
-func NewBulkDocIndexHandler(defaultIndexName string) *BulkDocIndexHandler {
-	return &BulkDocIndexHandler{
+func NewBulkIndexHandler(defaultIndexName string) *BulkIndexHandler {
+	return &BulkIndexHandler{
 		defaultIndexName: defaultIndexName,
 	}
 }
 
-func (h *BulkDocIndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-
+func (h *BulkIndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	
 	// find the index to operate on
 	var indexName string
 	if h.IndexNameLookup != nil {
@@ -32,13 +31,11 @@ func (h *BulkDocIndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request
 	if indexName == "" {
 		indexName = h.defaultIndexName
 	}
-	index := bleveHttp.IndexByName(indexName)
+	index := IndexerByName(indexName)
 	if index == nil {
 		showError(w, req, fmt.Sprintf("no such index '%s'", indexName), 404)
 		return
 	}
-	
-	batch := index.NewBatch()
 
 	// find the doc id field
 	var idField string
@@ -58,7 +55,6 @@ func (h *BulkDocIndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request
 	}
 
 	// parse request body as json
-	// var docs []interface{}
 	var docs []map[string]interface{}
 	err = json.Unmarshal(requestBody, &docs)
 	if err != nil {
@@ -66,22 +62,25 @@ func (h *BulkDocIndexHandler) ServeHTTP(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-  // docs is an array of docs
-  for i := range docs {
-    var doc = docs[i]
-    var docID = doc[idField].(string)
-    if docID != "" {
-      err = batch.Index(docID, doc)
-      if err != nil {
-        showError(w, req, fmt.Sprintf("error indexing document '%s': %v", docID, err), 500)
-        return
-      }
-    }
-  }
-  
-  if err := index.Batch(batch); err != nil {
-	  showError(w, req, fmt.Sprintf("failed to index batch: %s", err.Error()), 404)
+	startTime := time.Now()
+	if err := index.Index(idField, docs); err != nil {
+		showError(w, req, fmt.Sprintf("failed to index documents: %v", err), 404)
+		return
 	}
+	duration := time.Now().Sub(startTime)
+
+	count, err := index.Count()
+	if err != nil {
+		showError(w, req, fmt.Sprintf("failed to determine total document count"), 404)
+		return
+	}
+	rate := int(float64(count) / duration.Seconds())
+
+	fmt.Printf("Commencing indexing. GOMAXPROCS: %d, batch size: %d, shards: %d.\n", runtime.GOMAXPROCS(-1), *batchSize, *nShards)
+
+	fmt.Println("Indexing operation took", duration)
+	fmt.Printf("%d documents indexed.\n", count)
+	fmt.Printf("Indexing rate: %d docs/sec.\n", rate)
 
 	rv := struct {
 		Status string `json:"status"`

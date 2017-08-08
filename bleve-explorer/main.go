@@ -22,6 +22,7 @@ import (
 	"github.com/blevesearch/bleve"
 	bleveMappingUI "github.com/blevesearch/bleve-mapping-ui"
 	bleveHttp "github.com/blevesearch/bleve/http"
+	"github.com/blevesearch/bleve/mapping"
 
 	// import general purpose configuration
 	_ "github.com/blevesearch/bleve/config"
@@ -33,6 +34,10 @@ var dataDir = flag.String("dataDir", "data", "data directory")
 var staticEtag = flag.String("staticEtag", "", "optional static etag value.")
 var staticPath = flag.String("static", "", "optional path to static directory for web resources")
 var staticBleveMappingPath = flag.String("staticBleveMapping", "", "optional path to static-bleve-mapping directory for web resources")
+var batchSize = flag.Int("batchSize", 200, "batch size for indexing")
+var nShards = flag.Int("shards", 40, "number of indexing shards")
+
+type varLookupFunc func(req *http.Request) string
 
 func main() {
 	flag.Parse()
@@ -55,14 +60,14 @@ func main() {
 			continue
 		}
 
-		i, err := bleve.Open(indexPath)
-		if err != nil {
+    i := NewIndexer(indexPath, *nShards, *batchSize, getMapping())
+    if err := i.Open(); err != nil {
 			log.Printf("error opening index %s: %v", indexPath, err)
 		} else {
 			log.Printf("registered index: %s", dirInfo.Name())
-			bleveHttp.RegisterIndexName(dirInfo.Name(), i)
+			RegisterIndexerName(dirInfo.Name(), i)
 			// set correct name in stats
-			i.SetName(dirInfo.Name())
+			i.alias.SetName(dirInfo.Name())
 		}
 	}
 
@@ -99,55 +104,55 @@ func main() {
 	// add the API
 	bleveMappingUI.RegisterHandlers(router, "/api")
 
-	createIndexHandler := bleveHttp.NewCreateIndexHandler(*dataDir)
+	createIndexHandler := NewCreateIndexHandler(*dataDir, *nShards, *batchSize)
 	createIndexHandler.IndexNameLookup = indexNameLookup
 	router.Handle("/api/{indexName}", createIndexHandler).Methods("PUT")
 
-	getIndexHandler := bleveHttp.NewGetIndexHandler()
-	getIndexHandler.IndexNameLookup = indexNameLookup
+	getIndexHandler := NewGetIndexHandler()
+	getIndexHandler.IndexNameLookup = indexerNameLookup
 	router.Handle("/api/{indexName}", getIndexHandler).Methods("GET")
 
-	deleteIndexHandler := bleveHttp.NewDeleteIndexHandler(*dataDir)
-	deleteIndexHandler.IndexNameLookup = indexNameLookup
+	deleteIndexHandler := NewDeleteIndexHandler(*dataDir)
+	deleteIndexHandler.IndexNameLookup = indexerNameLookup
 	router.Handle("/api/{indexName}", deleteIndexHandler).Methods("DELETE")
 
-	listIndexesHandler := bleveHttp.NewListIndexesHandler()
+	listIndexesHandler := NewListIndexesHandler()
 	router.Handle("/api", listIndexesHandler).Methods("GET")
 
-	docIndexHandler := bleveHttp.NewDocIndexHandler("")
-	docIndexHandler.IndexNameLookup = indexNameLookup
+	docIndexHandler := NewDocIndexHandler("")
+	docIndexHandler.IndexNameLookup = indexerNameLookup
 	docIndexHandler.DocIDLookup = docIDLookup
 	router.Handle("/api/{indexName}/{docID}", docIndexHandler).Methods("PUT")
 	
 	bulkDocIndexHandler := NewBulkIndexHandler("")
-	bulkDocIndexHandler.IndexNameLookup = indexNameLookup
+	bulkDocIndexHandler.IndexNameLookup = indexerNameLookup
 	bulkDocIndexHandler.DocIDLookup = docIDLookup
 	router.Handle("/_bulk/{indexName}/{docID}", bulkDocIndexHandler).Methods("POST")
 
-	docCountHandler := bleveHttp.NewDocCountHandler("")
-	docCountHandler.IndexNameLookup = indexNameLookup
+	docCountHandler := NewDocCountHandler("")
+	docCountHandler.IndexNameLookup = indexerNameLookup
 	router.Handle("/api/{indexName}/_count", docCountHandler).Methods("GET")
 
-	docGetHandler := bleveHttp.NewDocGetHandler("")
-	docGetHandler.IndexNameLookup = indexNameLookup
+	docGetHandler := NewDocGetHandler("")
+	docGetHandler.IndexNameLookup = indexerNameLookup
 	docGetHandler.DocIDLookup = docIDLookup
 	router.Handle("/api/{indexName}/{docID}", docGetHandler).Methods("GET")
 
-	docDeleteHandler := bleveHttp.NewDocDeleteHandler("")
-	docDeleteHandler.IndexNameLookup = indexNameLookup
+	docDeleteHandler := NewDocDeleteHandler("")
+	docDeleteHandler.IndexNameLookup = indexerNameLookup
 	docDeleteHandler.DocIDLookup = docIDLookup
 	router.Handle("/api/{indexName}/{docID}", docDeleteHandler).Methods("DELETE")
 
-	searchHandler := bleveHttp.NewSearchHandler("")
-	searchHandler.IndexNameLookup = indexNameLookup
+	searchHandler := NewSearchHandler("")
+	searchHandler.IndexNameLookup = indexerNameLookup
 	router.Handle("/api/{indexName}/_search", searchHandler).Methods("POST")
 
 	listFieldsHandler := bleveHttp.NewListFieldsHandler("")
-	listFieldsHandler.IndexNameLookup = indexNameLookup
+	listFieldsHandler.IndexNameLookup = indexerNameLookup
 	router.Handle("/api/{indexName}/_fields", listFieldsHandler).Methods("GET")
 
 	debugHandler := bleveHttp.NewDebugDocumentHandler("")
-	debugHandler.IndexNameLookup = indexNameLookup
+	debugHandler.IndexNameLookup = indexerNameLookup
 	debugHandler.DocIDLookup = docIDLookup
 	router.Handle("/api/{indexName}/{docID}/_debug", debugHandler).Methods("GET")
 
@@ -158,4 +163,23 @@ func main() {
 	http.Handle("/", router)
 	log.Printf("Listening on %v", *bindAddr)
 	log.Fatal(http.ListenAndServe(*bindAddr, nil))
+}
+
+func getMapping() mapping.IndexMapping {
+// 	// a generic reusable mapping for english text
+// 	standardJustIndexed := bleve.NewTextFieldMapping()
+// 	standardJustIndexed.Store = false
+// 	standardJustIndexed.IncludeInAll = false
+// 	standardJustIndexed.IncludeTermVectors = false
+// 	standardJustIndexed.Analyzer = "standard"
+
+// 	articleMapping := bleve.NewDocumentMapping()
+
+// 	// body
+// 	articleMapping.AddFieldMappingsAt("Body", standardJustIndexed)
+
+	indexMapping := bleve.NewIndexMapping()
+// 	indexMapping.DefaultMapping = articleMapping
+// 	indexMapping.DefaultAnalyzer = "standard"
+	return indexMapping
 }
