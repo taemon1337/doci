@@ -1,7 +1,5 @@
 package com.pst.core;
 
-import com.pst.api.PstJson;
-
 import javax.ws.rs.core.StreamingOutput;
 import java.io.OutputStream;
 import java.io.InputStream;
@@ -10,6 +8,22 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.BufferedWriter;
 import javax.ws.rs.WebApplicationException;
+
+import org.apache.james.mime4j.Charsets;
+import org.apache.james.mime4j.dom.Message;
+import org.apache.james.mime4j.dom.Header;
+import org.apache.james.mime4j.stream.RawField;
+import org.apache.james.mime4j.dom.MessageWriter;
+import org.apache.james.mime4j.message.DefaultMessageWriter;
+import org.apache.james.mime4j.message.MessageBuilder;
+import org.apache.james.mime4j.dom.field.ParseException;
+import org.apache.james.mime4j.field.DefaultFieldParser;
+import org.apache.james.mime4j.dom.FieldParser;
+import org.apache.james.mime4j.MimeException;
+
+// import org.reflections.ReflectionUtils.getAllMethods;
+// import org.reflections.ReflectionUtils.withModifier;
+// import org.reflections.ReflectionUtils.withPrefix;
 
 import com.pff.PSTFile;
 import com.pff.PSTObject;
@@ -31,128 +45,34 @@ public class PstStreamingOutput implements StreamingOutput {
     this.filepath = filepath;
   }
 
-  public void writeOLD(OutputStream outputStream) throws IOException, WebApplicationException {
-    try (JsonGenerator generator = Json.createGenerator(outputStream)) {
-      try {
-        // open the PST file
-        System.out.println("INFO: parsing PST file at" + this.filepath);
-        PSTFile pstfile = new PSTFile(this.filepath);
-        
-        generator.writeStartObject().write("filepath", this.filepath);
-
-        // open array
-        JsonGenerator arrayGenerator = generator.writeStartArray("records");
-
-        // process the root folder
-        processFolder(pstfile.getRootFolder(), "/", arrayGenerator);
-        
-        // close array, object, and close
-        arrayGenerator.writeEnd();
-        generator.writeEnd().close();
-      } catch (PSTException | IOException e) {
-        e.printStackTrace();
-      }
-    }
-  }
-
   public void write(OutputStream outputStream) throws IOException, WebApplicationException {
     try {
-      Writer writer = new BufferedWriter(new OutputStreamWriter(outputStream));
-      
+      MessageWriter writer = new DefaultMessageWriter();
+      // Writer writer = new BufferedWriter(new OutputStreamWriter(outputStream));
+
       // open the PST file
       System.out.println("INFO: parsing PST file at" + this.filepath);
       PSTFile pstfile = new PSTFile(this.filepath);
-  
+
       // process the root folder
-      writer.write("[\n");
-      parseFolder(pstfile.getRootFolder(), ".", writer);
-      writer.write("{}\n]");
-      
-      writer.flush();
-      writer.close();
+      parseFolder(pstfile.getRootFolder(), ".", writer, outputStream);
     } catch (PSTException e) {
       e.printStackTrace();
     }
   }
-  
-  public void processFolder(PSTFolder folder, String path, JsonGenerator generator) {
-    path = path + "/" + folder.getDisplayName();
-    
-    if (folder.hasSubfolders()) {
-      try {
-        Vector<PSTFolder> childFolders = folder.getSubFolders();
-        for (PSTFolder childFolder : childFolders) {
-          processFolder(childFolder, path, generator);
-        }
-      } catch (PSTException | IOException e) {
-        e.printStackTrace();
-        generator
-          .writeStartObject()
-          .write("folder-path", path)
-          .write("error", e.toString())
-        .writeEnd();
-      }
-    }
-    
-    if (folder.getContentCount() > 0) {
-      try {
-        PSTObject psto = folder.getNextChild();
-        while (psto != null) {
-          processPstObject(psto, path, generator);
-          psto = folder.getNextChild();
-        }
-      } catch (PSTException | IOException e) {
-        e.printStackTrace();
-        generator
-          .writeStartObject()
-          .write("folder-path", path)
-          .write("error", e.toString())
-        .writeEnd();
-      }
-    }
-  }
-  
-  public void processPstObject(PSTObject obj, String path, JsonGenerator generator) {
-    PSTMessage msg = (PSTMessage)obj;
 
-    String messageClass = msg.getMessageClass();
-    String messageId = msg.getInternetMessageId();
-    String sender = msg.getSenderName() + "; " + msg.getSenderEmailAddress();
-    String receiver = msg.getReceivedByName() + "; " + msg.getReceivedByAddress();
-    String subject = msg.getSubject();
-    String datetime = msg.getMessageDeliveryTime().toString();
-    String nodeId = String.format("%d", msg.getDescriptorNodeId());
-    
-    generator
-      .writeStartObject()
-      .write("folder-path", path)
-      .write("message-class", messageClass)
-      .write("message-Id", messageId)
-      .write("node-Id", nodeId)
-      .write("sender", sender)
-      .write("receiver", receiver)
-      .write("subject", subject)
-      .write("datetime", datetime)
-    .writeEnd();
-  }
-
-  public void parseFolder(PSTFolder folder, String path, Writer writer) {
+  public void parseFolder(PSTFolder folder, String path, MessageWriter writer, OutputStream outputStream) {
     path = path + "." + folder.getDisplayName();
     
     if (folder.hasSubfolders()) {
       try {
         Vector<PSTFolder> childFolders = folder.getSubFolders();
         for (PSTFolder childFolder : childFolders) {
-          parseFolder(childFolder, path, writer);
+          parseFolder(childFolder, path, writer, outputStream);
         }
       } catch (PSTException | IOException e) {
-        try {
-          e.printStackTrace();
-          writer.write(String.format("{ \"%s\": \"%s\"}", "Error", e.toString()));
-          writer.flush();
-        } catch (IOException ee) {
-          ee.printStackTrace();
-        }
+        e.printStackTrace();
+        System.out.println(String.format("Error parsing folder %s: %s", path, e.toString()));
       }
     }
     
@@ -160,25 +80,86 @@ public class PstStreamingOutput implements StreamingOutput {
       try {
         PSTObject psto = folder.getNextChild();
         while (psto != null) {
-          PstJson pj = parsePstObject(psto, path);
-          writer.write(pj.toString() + ",\n");
-          writer.flush();
+          parsePstObject(psto, path, writer, outputStream);
           psto = folder.getNextChild();
         }
       } catch (PSTException | IOException e) {
-        try {
-          e.printStackTrace();
-          writer.write(String.format("{ \"%s\": \"%s\"}", "Error", e.toString()));
-          writer.flush();
-        } catch (IOException ee) {
-          ee.printStackTrace();
-        }
+        e.printStackTrace();
+        System.out.println(String.format("Error parsing folder %s: %s", path, e.toString()));
       }
     }
   }
   
-  public PstJson parsePstObject(PSTObject obj, String path) {
-    return new PstJson(obj, path);
+  public void parsePstObject(PSTObject obj, String path, MessageWriter writer, OutputStream outputStream) {
+    PSTMessage msg = (PSTMessage)obj;
+    FieldParser parser = new DefaultFieldParser().getParser();
+
+    String messageClass = msg.getMessageClass();
+    String messageId = msg.getInternetMessageId();
+    String senderAddress = msg.getSenderEmailAddress();
+    String receiverAddress = msg.getReceivedByAddress();
+    String sentAddress = msg.getSentRepresentingEmailAddress();
+    String senderName = parseNameAddress(msg.getSenderName());
+    String receiverName = parseNameAddress(msg.getReceivedByName());
+    String sentName = parseNameAddress(msg.getSentRepresentingName());
+    String subject = msg.getSubject();
+    Date datetime = msg.getMessageDeliveryTime();
+    String nodeId = String.format("%d", msg.getDescriptorNodeId());
+    String body = msg.getBody();
+    String senderAddressType = msg.getSenderAddrtype();
+    String receiverAddressType = msg.getReceivedByAddressType();
+    String sentAddressType = msg.getSentRepresentingAddressType();
+    String transportHeaders = msg.getTransportMessageHeaders();
+    
+    body += "\n----------ORIGINAL TRANSPORT HEADERS----------\n" + transportHeaders + "\n----------END TRANSPORT HEADERS----------\n\n";
+
+    // for now, skip all non IPM.Note classes
+    if (messageClass.startsWith("IPM.Note")) {
+      // Set<Method> getters = getAllMethods(obj, withModifier(Modifier.PUBLIC), withPrefix("get"));
+      try {
+        Message message = MessageBuilder.create()
+          .setFrom(senderName)
+          .setTo(receiverName)
+          .setSubject(msg.getSubject())
+          .setDate(msg.getMessageDeliveryTime())
+          .generateMessageId(String.format("%d", msg.getDescriptorNodeId()))
+          .setBody(body, Charsets.ISO_8859_1)
+          .build()
+        ;
+        
+        Header header = message.getHeader();
+
+        // header.setField(new RawField("Transport-Headers", transportHeaders));
+        header.setField(new RawField("Pst-Path", path));
+        header.setField(new RawField("Node-Id", nodeId));
+        header.setField(new RawField("Message-Class", messageClass));
+        header.setField(new RawField("Sender-Address-Type", senderAddressType));
+        header.setField(new RawField("Receiver-Address-Type", receiverAddressType));
+        header.setField(new RawField("Sent-Address-Type", sentAddressType));
+        header.setField(new RawField("Sender-Name", senderName));
+        header.setField(new RawField("Receiver-Name", receiverName));
+        header.setField(new RawField("Sent-Name", sentName));
+        header.setField(new RawField("Sender-Address", senderAddress));
+        header.setField(new RawField("Receiver-Address", receiverAddress));
+        header.setField(new RawField("Sent-Address", sentAddress));
+
+        writer.writeMessage(message, outputStream);
+        // writer.flush();
+      } catch (ParseException | IOException e) {
+        e.printStackTrace();
+        System.out.println(String.format("Error building MIME message %s: %s", path, e.toString()));
+      }
+    } else {
+      System.out.println(String.format("Skipping Message Class %s", messageClass));
+    }
   }
 
+  public String parseNameAddress(String str) {
+    if (str.contains("\\")) {
+      String[] bits = str.split("\\");
+      return bits[bits.length - 1];
+    } else {
+      return str;
+    }
+  }
 }
