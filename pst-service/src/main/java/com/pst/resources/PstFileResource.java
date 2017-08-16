@@ -4,6 +4,7 @@ import com.pst.util.FileWriter;
 import com.pst.core.PstStreamReader;
 import com.pst.core.PstStreamWriter;
 import com.pst.core.PstStreamingOutput;
+import com.pst.core.PstMboxStreamingOutput;
 
 import java.io.Writer;
 import java.io.IOException;
@@ -56,7 +57,7 @@ public class PstFileResource {
     //   }
     // };
     
-    PstStreamingOutput stream = new PstStreamingOutput(uploadedFileLocation);
+    PstMboxStreamingOutput stream = new PstMboxStreamingOutput(uploadedFileLocation);
     return Response.ok(stream).build();
   }
 }

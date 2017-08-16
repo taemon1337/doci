@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.BufferedWriter;
 import javax.ws.rs.WebApplicationException;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 import org.apache.james.mime4j.Charsets;
 import org.apache.james.mime4j.dom.Message;
@@ -90,12 +92,31 @@ public class PstStreamingOutput implements StreamingOutput {
     }
   }
   
+  public void pstToMbox(PSTObject obj, String path, Writer writer) {
+    PSTMessage msg = (PSTMessage)obj;
+    String transportHeaders = msg.getTransportMessageHeaders();
+    String body = msg.getBody();
+    
+    try {
+      writer.write(transportHeaders);
+      writer.write("\n");
+      writer.write(body);
+      writer.write("\n");
+      writer.flush();
+    } catch (IOException e) {
+      e.printStackTrace();
+      System.out.println("Error writing PST message to mbox!");
+    }
+  }
+  
   public void parsePstObject(PSTObject obj, String path, MessageWriter writer, OutputStream outputStream) {
     PSTMessage msg = (PSTMessage)obj;
     FieldParser parser = new DefaultFieldParser().getParser();
 
     String messageClass = msg.getMessageClass();
     String messageId = msg.getInternetMessageId();
+    String from = parseFromAddress(msg);
+    String to = parseToAddress(msg);
     String senderAddress = msg.getSenderEmailAddress();
     String receiverAddress = msg.getReceivedByAddress();
     String sentAddress = msg.getSentRepresentingEmailAddress();
@@ -113,13 +134,15 @@ public class PstStreamingOutput implements StreamingOutput {
     
     body += "\n----------ORIGINAL TRANSPORT HEADERS----------\n" + transportHeaders + "\n----------END TRANSPORT HEADERS----------\n\n";
 
+    System.out.println("FROM: " + from + ", TO: " + to);
+
     // for now, skip all non IPM.Note classes
     if (messageClass.startsWith("IPM.Note")) {
       // Set<Method> getters = getAllMethods(obj, withModifier(Modifier.PUBLIC), withPrefix("get"));
       try {
         Message message = MessageBuilder.create()
-          .setFrom(senderName)
-          .setTo(receiverName)
+          .setFrom(from)
+          .setTo(to)
           .setSubject(msg.getSubject())
           .setDate(msg.getMessageDeliveryTime())
           .generateMessageId(String.format("%d", msg.getDescriptorNodeId()))
@@ -153,13 +176,32 @@ public class PstStreamingOutput implements StreamingOutput {
       System.out.println(String.format("Skipping Message Class %s", messageClass));
     }
   }
+  
+  public String parseFromAddress(PSTMessage msg) {
+    String hdrs = msg.getTransportMessageHeaders();
+    Pattern p = Pattern.compile("From: ([\\w\\s]+)[^\\w\\s]");
+    Matcher m = p.matcher(hdrs);
+
+    if (m.find()) {
+      return m.group(1);
+    } else {
+      return "from <from@unknown>";
+    }
+  }
+
+  public String parseToAddress(PSTMessage msg) {
+    String hdrs = msg.getTransportMessageHeaders();
+    Pattern p = Pattern.compile("To: ([\\w\\s]+)[^\\w\\s]");
+    Matcher m = p.matcher(hdrs);
+
+    if (m.find()) {
+      return m.group(1);
+    } else {
+      return "to <to@unknown>";
+    }
+  }
 
   public String parseNameAddress(String str) {
-    if (str.contains("\\")) {
-      String[] bits = str.split("\\");
-      return bits[bits.length - 1];
-    } else {
-      return str;
-    }
+    return str.replaceAll("[^\\w\\s]","").replaceAll("[\\r|\\n]+", "").replaceAll("\\s+", " ").trim();
   }
 }
